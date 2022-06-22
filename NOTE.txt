@@ -1,0 +1,49 @@
+HOW TO START THE FLASK APP:
+    Set a virtual environment
+    Pip install virtualenv
+    Pip install flask
+    To run the flask app, activate the prepared venv
+    Set environment variable FLASK_APP:
+        in powershell use: $env:FLASK_APP="flaskblog.py"
+        in linux use: export FLASK_APP=flaskblog.py
+    Also can set environment variable FLASK_DEBUG=1
+    
+    Then: flask run
+    --------
+    Instead of the above method, can run the app as usual by setting __name__ == '__main__' and run python:
+        in shell: python flaskblog.py
+
+
+HOW TO INITIATE DATABASE SQLITE AND HAVE SOME COMMON QUERY USING FLASK ORM:
+    $ python
+    >>> from flaskblog2 import db       ## db is the created instance of SQLAlchemy
+    >>> db.create_all()
+    >>> from flaskblog2 import User, Post       ## User and Post are the defined classes extending db.Model
+    >>> user_1 = User(username='Ross', email='rgeller@friends.com', password='password')
+    >>> db.session.add(user_1)
+    >>> user_2 = User(username='Monica', email='mgeller@friends.com', password='password')
+    >>> db.session.add(user_2)
+    >>> db.session.commit()         ## added material should be committed, but can commit after several changes and not immediately
+
+    NOW LET'S HAVE SOME QUERIES:
+    >>> User.query.all()        ## .all() will return a list of all users
+    >>> User.query.first()      ## .first() will return just the first user; so the structure is not a list
+    >>> User.query.filter_by(username='Ross').all()
+    >>> User.query.filter_by(username='Ross').first()
+    >>> user = User.query.filter_by(username='Ross').first()
+    >>> user.username
+    >>> user.id
+    >>> user2 = User.query.get(user.id)       ## get() method enable us to get a user by its id; in this sample user and user2 are the same because of user.id
+    >>> user.posts          ## pay attention that 'posts' is not a column in User table; it is accessible because of the defined relationship in class User
+    >>> post_1 = Post(title='Blog 1', content='First Post Content', user_id=user.id)
+    >>> post_2 = Post(title='Blog 2', content='Second Post Content', user_id=user.id)
+    >>> db.session.add(post_1)
+    >>> db.session.add(post_2)
+    >>> db.session.commit()
+    >>> user.posts
+    >>> for post in user.posts:
+        ...  print(post.title)
+    >>> post = Post.query.first()
+    >>> post.user_id
+    >>> post.author         ## pay attention that 'author' is not a column name in Post table; it is accessible in this way because of the defined 'backref' in class User
+    >>> db.drop_all()       ## this delete all the tables and records in them
