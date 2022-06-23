@@ -16,9 +16,9 @@ HOW TO START THE FLASK APP:
 
 HOW TO INITIATE DATABASE SQLITE AND HAVE SOME COMMON QUERY USING FLASK ORM:
     $ python
-    >>> from flaskblog2 import db       ## db is the created instance of SQLAlchemy
+    >>> from flaskblog import db       ## db is the created instance of SQLAlchemy
     >>> db.create_all()
-    >>> from flaskblog2 import User, Post       ## User and Post are the defined classes extending db.Model
+    >>> from flaskblog import User, Post       ## User and Post are the defined classes extending db.Model
     >>> user_1 = User(username='Ross', email='rgeller@friends.com', password='password')
     >>> db.session.add(user_1)
     >>> user_2 = User(username='Monica', email='mgeller@friends.com', password='password')
