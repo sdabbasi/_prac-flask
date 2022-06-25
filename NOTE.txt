@@ -47,3 +47,17 @@ HOW TO INITIATE DATABASE SQLITE AND HAVE SOME COMMON QUERY USING FLASK ORM:
     >>> post.user_id
     >>> post.author         ## pay attention that 'author' is not a column name in Post table; it is accessible in this way because of the defined 'backref' in class User
     >>> db.drop_all()       ## this delete all the tables and records in them
+
+
+HOW TO USE HASHING ON OUR DATA USING FLASK-BCRYPT:
+    $ pip install flask-bcrypt
+    $ python
+    >>> from flask_bcrypt import Bcrypt
+    >>> bcrypt = Bcrypt()
+    >>> bcrypt.generate_password_hash('testing pass')       ## will return byte hash with a 'b' at the beginning
+    >>> bcrypt.generate_password_hash('testing pass').decode('utf-8')    ## will return hash as a string
+    >>> hashed_pw = bcrypt.generate_password_hash('testing pass').decode('utf-8')
+    >>> bcrypt.check_password_hash(hashed_pw, 'testing pass')       ## return True
+    >>> bcrypt.check_password_hash(hashed_pw, 'not the pass')       ## return False
+    
+
