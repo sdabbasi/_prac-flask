@@ -1,0 +1,207 @@
+## IN THIS NOTE I WILL COVER PARTS 13, 14 AND 15 OF THE TUTORIAL WHICH ARE RELATED TO DEPLOYING THE WEB APP ON
+## A SERVER; FOR THIS PURPOSE, CONSIDER THE FOLLOWING ASSUMPTIONS, THEN CONTINUE THE NUMBERED STEPS:
+    SERVER'S IP: 123.123.123.123
+    HOSTNAME: flask-server
+    USER: myuser
+    OS: Linux Ubuntu 
+
+1- UPDATE YOUR SYSTEMS TO HAVE THE BEST LEVEL OF SECURITY: (ON SERVER)
+~# apt update && apt upgrade
+
+2- SET A HOSTNAME: (ON SERVER)
+~# hostnamectl set-hostname flask-server
+
+3- IN THE HOSTS FILE, SET THE IP AND NAME OF THE CREATED HOSTNAME: (ON SERVER)
+~# nano /etc/hosts
+    in the opened file add:
+        123.123.123.123     flask-server
+
+4- ADD A USER AND FUNCTION USING THAT USER AFTERWARD TO OBTAIN SAFETY: (ON SERVER)
+~# adduser myuser
+
+5- ADD THE CREATED USER TO SUDO GROUP: (ON SERVER)
+~# adduser myuser sudo
+
+6- LOGOUT AND LOGIN AGAIN WITH THE CREATED USER (ON SERVER)
+
+7- SET SSH KEY FOR EASIER AND MORE SECURE CONNECTION (ON BOTH SERVER AND LOCAL)
+
+8- NOW THAT WE HAVE A SUDO MEMBER USER, DISABLE ROOT LOGIN VIA SSH: (ON SERVER)
+    a) ~$ sudo nano /etc/ssh/sshd.config
+        in the opened file set as following:
+            PermitRootLogin no
+            PasswordAuthentication no       (warning: be sure you can use your ssh key authentication truly, then disable this option)
+    b) ~$ sudo systemctl restart sshd
+
+9- INSTALL UFW TO SET FIREWALL RULES: (ON SERVER)
+~$ sudo apt install ufw
+
+10- SET THE FOLLOWING FIREWALL RULES: (ON SERVER)
+~$ sudo ufw default allow outgoing
+~$ sudo ufw default deny incoming
+~$ sudo ufw allow ssh
+~$ sudo ufw allow 5000      (allow port 5000 because is the default flask port)
+~$ sudo ufw enable          (enable the changes)
+~$ sudo ufw status          (check the defined rules)
+
+11- USE PIP FREEZE AND COPY THE RESULT IN A REQUIREMENTS.TXT FILE IN THE ROOT OF THE PROJECT: (ON LOCAL)
+~$ pip freeze > requirements.txt
+
+12- MOVE THE PROJECT TO THE SERVER; CAN USE GIT PUSH AND CLONE, FILE TRANSFERRING SUCH AS FILEZILLA AND MOBAXTERM, 
+OR SCP BASH COMMAND AS FOLLOWING: (ON LOCAL)
+~$ scp -r directory_to_the_project_on_local/_prac-flask myuser@123.123.123.123:~/    (project's name is _prac-flask and according the command, the final location on the server would be /home/myuser/_prac-flask)
+
+13- CREATE A PYTHON VIRTUAL ENVIRONMENT ON THE SERVER TO RUN THE PROJECT: (ON SERVER)
+~$ sudo apt install python3-pip
+~$ sudo apt install python3-venv
+~$ python3 -m venv _prac-flask/.env      (this will create the venv named .env inside the _prac-flask file)
+~$ cd _prac-flask
+~$ source .env/bin/activate             (this activateS the .env virtual environment)
+~$ pip install -r requirements.txt       (this will install all requirements in our venv)
+
+14- HAVE TO SET THE ENVIRONMENT VARIABLES, THAT HAVE BEEN SET IN THE LOCAL, ON SERVER TOO; FIRST WE HAVE TO 
+RETRIEVE THEM FROM THE LOCAL: (ON LOCAL)
+~$ python
+>>> import os
+>>> os.environ.get('SECRET_KEY')
+>>> os.environ.get('SQLALCHEMY_DATABASE_URI')
+>>> os.environ.get('EMAIL_USER')
+>>> os.environ.get('EMAIL_PASS')
+
+15- HAVING THE RETRIEVED ENV VARS, WE CAN EITHER SET ENV VARS OR CREATE A CONFIG FILE ON SERVER; HERE WE USE
+THE CONFIG FILE AND COPY AND PASTE DATA: (ON SERVER)
+~$ sudo touch /etc/flaskblog_config.json        (can use yaml file too instead of json) 
+~$ nano /etc/flaskblog_config.json
+    in the opened file set as following:
+        {
+            "SECRET_KEY": -THE RETRIEVED SECRET_KEY-
+            "SQLALCHEMY_DATABASE_URI": -THE RETRIEVED URI-
+            "MAIL_SERVER" = -THE RETRIEVED MAIL SERVER-
+            "MAIL_PORT" = -THE RETRIEVED MAIL SERVER PORT-
+            "EMAIL_USER": -THE RETRIEVED EMAIL_USER-
+            "EMAIL_PASS": -THE RETRIEVED EMAIL_PASS-
+        }
+
+16- EDIT THE CONFIG.PY FILE INSIDE PROJECT TO READ THE CONFIG FROM THE ETC DIRECTORY: (ON SERVER)
+~$ sudo nano flaskblog/config.py
+    in the opened file set as following:
+        import os
+        import json
+
+        with open('/etc/flaskblog_config.json) as file:
+            config = json.load(file)
+
+        class Config():
+            SECRET_KEY = config.get('SECRET_KEY')
+            SQLALCHEMY_DATABASE_URI = config.get('SQLALCHEMY_DATABASE_URI')
+            MAIL_SERVER = config.get('MAIL_SERVER')
+            MAIL_PORT = config.get('MAIL_SERVER_PORT')
+            MAIL_USE_TLS = True
+            MAIL_USERNAME = config.get('EMAIL_USER')
+            MAIL_PASSWORD = config.get('EMAIL_PASS')
+
+17- RUN THE APPLICATION (THEN REQUEST FROM LOCAL TO 123.123.123.123:5000): (ON SERVER)
+~$ export FLASK_APP=run.py
+~$ flask run --host=0.0.0.0
+
+18- NOW THAT THE DEPLOYMENT IS COMPLETED, INSTALL NGINX AND GUNICORN: (ON SERVER)
+~$ sudo apt install nginx
+~$ pip install gunicorn         (do it inside the activated virtual environment)
+
+19- SET THE CONFIG FOR NGINX AND GUNICORN: (ON SERVER)
+~$ sudo rm /etc/nginx/sites-enabled/default         (remove the default config file)
+~$ sudo nano /etc/nginx/sites-enabled/flaskblog
+    in the opened file set as following:
+        server {
+            listen 80;
+            server_name 123.123.123.123
+
+            location /static {
+                alias /home/myuser/_prac-flask/flaskblog/static;
+            }
+
+            location / {
+                proxy_pass http://localhost:8000;
+                include /etc/nginx/proxy_params;
+                proxy_redirect off;
+            }
+        }
+
+20- NOW THAT NGINX IS SET, DISABLE PORT 5000 AND ALLOW PORT 80: (ON SERVER)
+~$ sudo ufw allow http/tcp
+~$ sudo ufw delete allow 5000
+~$ sudo ufw enable
+
+21- RESTART NGINX: (ON SERVER)
+~$ sudo systemctl restart nginx
+
+22- START THE GUNICORN: (ON SERVER)
+~$ gunicorn -w 3 run:app        (-w 3 means the number of workers would be three; run is for the run.py file and app is the variable inside the run file)
+                                (if it is working well, stop it, then try to run it in the background with monitoring as next step (step 23))
+
+23- INSTALL, CONFIG AND RUN SUPERVISOR SOFTWARE TO MONITOR THE GUNICORN PROCESSES: (ON SERVER)
+~$ sudo apt install supervisor
+~$ sudo nano /etc/supervisor/conf.d/flaskblog.conf
+    in the opened file set as following:
+        [program:flaskblog]
+        directory=/home/myuser/_prac-flask
+        command=/home/myuser/_prac-flask/.env/bin/gunicorn -w 3 run:app
+        user=myuser
+        autostart=true
+        autorestart=true
+        stopasgroup=true
+        killasgroup=true
+        stderr_logfile=/var/log/flaskblog/flaskblog.err.log
+        stdout_logfile=/var/log/flaskblog/flaskblog.out.log
+~$ sudo mkdir -p /var/log/flaskblog
+~$ sudo touch /var/log/flaskblog/flaskblog.err.log
+~$ sudo touch /var/log/flaskblog/flaskblog.out.log
+~$ sudo supervisorctl reload
+
+--------------------------------------------------------------
+## WE ARE GOING TO USE WWW.LETSENCRYPT.ORG AND WWW.CERTBOT.EFF.ORG TO ENABLE HTTPS WITH FREE SSL/TLS
+## CERTIFICATE FOR OUR WEB APPLICATION. REGARDING CERTBOT GUIDE, WE SHOULD CHOOSE THE USING WEB SERVER AND OPERATING
+## SYSTEM WHICH ARE NGINX AND UBUNTU RESPECTIVELY; THEN FUNCTION AS FOLLOWING:
+
+1- AS CERTBOT GUIDE, IN A SERVER TERMINAL: (ON SERVER)
+~$ sudo apt-get update
+~$ sudo apt-get install software-properties-common
+~$ sudo add-apt-repository universe
+~$ sudo add-apt-repository ppa:certbot/certbot
+~$ sudo apt-get update
+~$ sudo apt-get install python-certbot-nginx
+
+2- PUT THE WEB APPLICATION DOMAIN NAME IN THE NGINX CONFIG FILE, IF YOU HAVE BOUGHT ONE: (ON SERVER)
+~$ sudo nano /etc/nginx/sites-enabled/flaskblog
+    in the opened file set as following:
+        server {
+            listen 80;
+            server_name www.myflaskblog.com
+
+            location /static {
+                alias /home/myuser/_prac-flask/flaskblog/static;
+            }
+
+            location / {
+                proxy_pass http://localhost:8000;
+                include /etc/nginx/proxy_params;
+                proxy_redirect off;
+            }
+        }
+
+3- CONTINUE CERTBOT GUIDE, IN A SERVER TERMINAL: (ON SERVER)
+~$ sudo certbot --nginx
+
+4- SET ALLOW FOR HTTPS TRAFFIC IN THE FIREWALL: (ON SERVER)
+~$ sudo ufw allow https
+
+5- RESTART NGINX TO ALL CHANGES GET PLACE: (ON SERVER)
+~$ sudo systemctl restart nginx
+
+6- CAN RENEW THE HTTPS CERTIFICATE: (ON SERVER)
+~$ sudo certbot renew --dry-run     (each 80 days the certificate gets expired and would need renewal; so can have a job for that)
+
+7- DEFINE A CRON JOB TO AUTOMATICALLY RENEW THE HTTPS CERTIFICATE: (ON SERVER)
+~$ sudo crontab -e
+    choose nano editor and set the following command add the end of file:
+        30 4 1 * * sudo certbot renew --quiet           (this will automatically renew the certificate at 4:30 of first day of each month)
